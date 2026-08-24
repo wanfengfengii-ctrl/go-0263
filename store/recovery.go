@@ -68,7 +68,7 @@ func buildTaskView(q querier, id task.TaskID) (*TaskView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if rc, ok := loadRecheck(q, id, t.Generation); ok {
+	if rc, ok := loadLatestRecheck(q, id); ok {
 		view.Recheck = &RecheckView{
 			Reason:     rc.Reason,
 			CrateSeals: rc.CrateSeals,
@@ -251,6 +251,29 @@ func loadRecheck(q querier, id task.TaskID, gen task.Generation) (arbiter.Rechec
 		return r, false
 	}
 	r.TaskID, r.Generation = id, gen
+	_ = jsonUnmarshal(seals, &r.CrateSeals)
+	_ = jsonUnmarshal(codes, &r.BlindCodes)
+	_ = jsonUnmarshal(holes, &r.TestHoles)
+	return r, true
+}
+
+// loadLatestRecheck reads the most recent recheck for a task. A rejudge records
+// its recheck at the generation that was current and then advances the task to
+// a fresh generation, so the latest recheck usually sits at the prior
+// generation. Surfacing it by current generation would hide the just-registered
+// affected crates, blind codes and test holes from reviewers.
+func loadLatestRecheck(q querier, id task.TaskID) (arbiter.Recheck, bool) {
+	var r arbiter.Recheck
+	var gen int64
+	var seals, codes, holes string
+	err := q.QueryRow(
+		`SELECT generation, reason, crate_seals, blind_codes, test_holes FROM rechecks
+		 WHERE task_id=? ORDER BY generation DESC LIMIT 1`,
+		string(id)).Scan(&gen, &r.Reason, &seals, &codes, &holes)
+	if err != nil {
+		return r, false
+	}
+	r.TaskID, r.Generation = id, task.Generation(gen)
 	_ = jsonUnmarshal(seals, &r.CrateSeals)
 	_ = jsonUnmarshal(codes, &r.BlindCodes)
 	_ = jsonUnmarshal(holes, &r.TestHoles)

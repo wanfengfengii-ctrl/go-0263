@@ -483,6 +483,15 @@ func (s *SQLite) SubmitReadings(ctx context.Context, id task.TaskID, req Reading
 			if err := insertAudit(tx, uuid.NewString(), string(id), t.Generation, "system", "adapter-retry", string(id), "", tick); err != nil {
 				return err
 			}
+			// The retry rows are the whole point of a failed adapter call: the
+			// quality gate must be able to read the next retry's target, attempt
+			// and planned tick. Commit them before surfacing the pending-retry
+			// error; withTx would otherwise roll the transaction back and the
+			// rows would vanish. Control never reaches the readings/advance path
+			// below, so the task state, leases and accepted evidence stay put.
+			if err := tx.Commit(); err != nil {
+				return err
+			}
 			return evidence.ErrAdapterFailed
 		}
 

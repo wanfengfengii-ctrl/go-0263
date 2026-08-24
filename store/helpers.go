@@ -149,12 +149,15 @@ func requestDigest(v any) (string, error) {
 
 // checkIdempotency returns the cached response body and a found flag. A replay
 // with a different digest returns errOperationConflict; a matching replay
-// returns the original serialized response.
+// returns the original serialized response. The lookup is scoped to the
+// operation kind plus task id, matching the (scope, operation_no) primary key,
+// so the same operation number may be safely reused across different operations
+// on the same task without colliding.
 func checkIdempotency(tx *sql.Tx, scope, opNo, digest string) (string, bool, error) {
 	var reqDigest, body string
 	err := tx.QueryRow(
 		`SELECT request_digest, response_body_json FROM idempotency_keys
-		 WHERE operation_no=?`, opNo).
+		 WHERE scope=? AND operation_no=?`, scope, opNo).
 		Scan(&reqDigest, &body)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil

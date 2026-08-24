@@ -271,6 +271,27 @@ func (s *SQLite) RevealSamples(ctx context.Context, id task.TaskID, req RevealRe
 			}
 			confirmed[seal] = true
 		}
+		// Load the persisted reveal state for every blind sample so the
+		// domain check observes the real mapping instead of a freshly zeroed
+		// struct. This makes a same-crate replay idempotent and a different-
+		// crate rebind reject with ErrAlreadyRevealed rather than silently
+		// no-oping the UPDATE while reporting success.
+		persisted := make(map[string]string, len(sn.BlindCodes))
+		prows, err := tx.Query(`SELECT blind_code, COALESCE(revealed_crate_seal,'') FROM blind_samples WHERE task_id=?`, string(id))
+		if err != nil {
+			return err
+		}
+		defer prows.Close()
+		for prows.Next() {
+			var code, seal string
+			if err := prows.Scan(&code, &seal); err != nil {
+				return err
+			}
+			persisted[code] = seal
+		}
+		if err := prows.Err(); err != nil {
+			return err
+		}
 		for _, m := range req.Reveals {
 			if !sn.HasBlindCode(m.BlindCode) {
 				return ledger.ErrCrateSealUnknown
@@ -278,7 +299,12 @@ func (s *SQLite) RevealSamples(ctx context.Context, id task.TaskID, req RevealRe
 			if !sn.HasCrateSeal(m.CrateSeal) {
 				return ledger.ErrCrateSealUnknown
 			}
-			sample := ledger.BlindSample{TaskID: id, BlindCode: m.BlindCode, Generation: t.Generation}
+			sample := ledger.BlindSample{
+				TaskID:            id,
+				BlindCode:         m.BlindCode,
+				RevealedCrateSeal: persisted[m.BlindCode],
+				Generation:        t.Generation,
+			}
 			if err := sample.Reveal(m.CrateSeal, t.Generation, confirmed[m.CrateSeal]); err != nil {
 				return err
 			}

@@ -12,13 +12,20 @@ var ErrGenerationMismatch = errors.New("ledger: generation mismatch")
 
 // Reveal links a blind sample to its crate seal. The reveal must match the
 // current task generation and the crate must already be confirmed by the
-// receiving gate; a sample can only be revealed once.
+// receiving gate. A sample can only be revealed once: re-revealing the same
+// crate seal is idempotent (returns nil without mutation), while re-revealing
+// a different crate seal is rejected with ErrAlreadyRevealed so a blind code
+// can never be silently rebound to a second crate.
 func (s *BlindSample) Reveal(crateSeal string, gen task.Generation, crateConfirmed bool) error {
 	if s.Generation != gen {
 		return ErrGenerationMismatch
 	}
 	if !crateConfirmed {
 		return ErrCrateNotConfirmed
+	}
+	if s.RevealedCrateSeal == crateSeal {
+		// Same crate seal: idempotent replay, nothing to do.
+		return nil
 	}
 	if s.RevealedCrateSeal != "" {
 		return ErrAlreadyRevealed

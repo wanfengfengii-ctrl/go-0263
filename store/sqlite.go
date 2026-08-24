@@ -203,6 +203,8 @@ func mapErr(err error) error {
 		return NewCodedError(CodeIntakeBatchDuplicate, "duplicate intake batch")
 	case errors.Is(err, errOperationConflict):
 		return NewCodedError(CodeOperationConflict, "operation number conflict")
+	case errors.Is(err, ledger.ErrAlreadyRevealed):
+		return NewCodedError(CodeBlindAlreadyRevealed, "blind sample already revealed")
 	case errors.Is(err, ErrNotFound):
 		return NewCodedError(CodeNotFound, "not found")
 	default:

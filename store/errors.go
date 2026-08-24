@@ -28,6 +28,7 @@ const (
 	CodeInvalidState              = "ERR_INVALID_STATE"
 	CodeNotFound                  = "ERR_NOT_FOUND"
 	CodeInvalidRequest            = "ERR_INVALID_REQUEST"
+	CodeBlindAlreadyRevealed      = "ERR_BLIND_ALREADY_REVEALED"
 )
 
 // CodedError pairs a stable code with a human-readable reason and an optional,

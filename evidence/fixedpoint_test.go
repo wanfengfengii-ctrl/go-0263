@@ -41,6 +41,10 @@ func TestParseFixedRejects(t *testing.T) {
 		{"1.2.3", 2, ErrFixedPointInvalid},
 		{"99999999999999999999", 0, ErrFixedPointLength}, // 20 digits
 		{"1", -1, ErrFixedPointScale},
+		// 18 integer digits pass the length gate, but the combined digits
+		// overflow int64: must be rejected as overflow, not truncated to
+		// math.MaxInt64 (the reported near-infrared acid overflow case).
+		{"999999999999999999.99", 2, ErrFixedPointOverflow},
 	}
 	for _, c := range cases {
 		_, err := ParseFixed(c.in, c.scale)

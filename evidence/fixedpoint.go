@@ -77,9 +77,10 @@ func ParseFixed(s string, scale int) (FixedPoint, error) {
 
 	v, err := strconv.ParseInt(digits, 10, 64)
 	if err != nil {
-		if !errors.Is(err, strconv.ErrRange) {
-			return FixedPoint{}, ErrFixedPointInvalid
+		if errors.Is(err, strconv.ErrRange) {
+			return FixedPoint{}, ErrFixedPointOverflow
 		}
+		return FixedPoint{}, ErrFixedPointInvalid
 	}
 	if neg {
 		v = -v

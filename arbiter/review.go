@@ -40,9 +40,14 @@ func (s *ReviewSet) Add(r Review) error {
 }
 
 // HasIndependentApproval reports whether two distinct reviewers with distinct
-// roles have both approved the current generation.
+// roles have both approved the current generation. A single reject vote among
+// any recorded review blocks cold-press admission: cold-press requires
+// unanimous approval, not merely one approving pair.
 func (s *ReviewSet) HasIndependentApproval() bool {
 	if len(s.Reviews) < 2 {
+		return false
+	}
+	if s.HasReject() {
 		return false
 	}
 	for i := 0; i < len(s.Reviews); i++ {

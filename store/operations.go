@@ -840,9 +840,13 @@ func finalizeView(tx *sql.Tx, scope, opNo, digest string, id task.TaskID, tick i
 	return nil
 }
 
+// checkIntakeBatchFree mirrors the idx_tasks_intake_open partial unique index:
+// only an open (non-finalized) task holds a batch. A cancelled or otherwise
+// finalized task releases its batch number so the same batch can be re-locked,
+// e.g. after a crate-seal recording error.
 func checkIntakeBatchFree(tx *sql.Tx, batch string) error {
 	var n int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE intake_batch=?`, batch).Scan(&n); err != nil {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE intake_batch=? AND final_kind IS NULL`, batch).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {

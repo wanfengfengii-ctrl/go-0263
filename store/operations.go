@@ -787,6 +787,17 @@ func (s *SQLite) Finalize(ctx context.Context, id task.TaskID, req FinalizeReque
 			return arbiter.ErrFinalConflict
 		}
 		tick, _ := nextTick(tx)
+		// A terminal task no longer holds physical resources: release every
+		// active lease so the crusher line, inert window and test holes become
+		// available to the next open task. The partial unique index on
+		// released_tick IS NULL then permits a fresh lease to commit, and the
+		// busy-detection query no longer treats the ended task as occupied.
+		if _, err := tx.Exec(
+			`UPDATE resource_leases SET released_tick=?
+			 WHERE task_id=? AND released_tick IS NULL`,
+			tick, string(id)); err != nil {
+			return err
+		}
 		if err := insertEvidence(tx, id, t.Generation, evidence.EvidenceFinal, string(req.Kind), 0, 0, cred.Digest, true, "", tick); err != nil {
 			return err
 		}

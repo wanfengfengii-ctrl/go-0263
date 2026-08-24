@@ -28,7 +28,7 @@ func (s *SQLite) LockTask(ctx context.Context, req LockRequest) (*TaskView, erro
 	scope := "lock:" + req.IntakeBatch
 
 	var view *TaskView
-	err = s.withTx(context.Background(), func(tx *sql.Tx) error {
+	err = s.withTx(ctx, func(tx *sql.Tx) error {
 		tick, err := nextTick(tx)
 		if err != nil {
 			return err

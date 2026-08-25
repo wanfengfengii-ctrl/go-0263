@@ -83,7 +83,12 @@ func buildTaskView(q querier, id task.TaskID) (*TaskView, error) {
 	if t.FinalKind != "" {
 		view.Final = &FinalView{Kind: t.FinalKind, Credential: t.FinalCredential}
 	}
-	view.Reasons = loadReasons(q, id, t.Generation)
+	// Reasons span every generation: a rejudge advances the generation, but the
+	// out-of-range evidence that triggered it still belongs to the older
+	// generation. Scoping reasons to the current generation would erase that
+	// historical anomaly basis from the task detail, so reasons are aggregated
+	// across all generations plus any recorded recheck trigger.
+	view.Reasons = loadReasons(q, id)
 	return view, nil
 }
 
@@ -257,23 +262,52 @@ func loadRecheck(q querier, id task.TaskID, gen task.Generation) (arbiter.Rechec
 	return r, true
 }
 
-// loadReasons collects deterministically sorted reason codes from accepted
-// out-of-range evidence and any recheck, for stable reason-list serialization.
-func loadReasons(q querier, id task.TaskID, gen task.Generation) []string {
+// loadReasons collects deterministically sorted, deduplicated reason codes for
+// a task. It aggregates accepted out-of-range evidence across every generation
+// plus the trigger reason of any recorded deterioration recheck.
+//
+// A rejudge advances the task generation, but the anomaly evidence that
+// motivated it (e.g. an out-of-range oxidation reading) remains bound to the
+// older generation. Scoping reasons to the current generation would erase that
+// historical basis from the task detail after a rejudge; aggregating across all
+// generations keeps it visible.
+func loadReasons(q querier, id task.TaskID) []string {
+	seen := make(map[string]bool)
 	var reasons []string
-	rows, err := q.Query(
-		`SELECT reason_code FROM evidence_versions
-		 WHERE task_id=? AND generation=? AND accepted=1 AND reason_code IS NOT NULL AND reason_code<>''`,
-		string(id), gen)
+	add := func(r string) {
+		if r == "" || seen[r] {
+			return
+		}
+		seen[r] = true
+		reasons = append(reasons, r)
+	}
+
+	evRows, err := q.Query(
+		`SELECT DISTINCT reason_code FROM evidence_versions
+		 WHERE task_id=? AND accepted=1 AND reason_code IS NOT NULL AND reason_code<>''`,
+		string(id))
 	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
+		for evRows.Next() {
 			var r string
-			if rows.Scan(&r) == nil {
-				reasons = append(reasons, r)
+			if evRows.Scan(&r) == nil {
+				add(r)
 			}
 		}
+		evRows.Close()
 	}
+
+	rcRows, err := q.Query(
+		`SELECT DISTINCT reason FROM rechecks WHERE task_id=?`, string(id))
+	if err == nil {
+		for rcRows.Next() {
+			var r string
+			if rcRows.Scan(&r) == nil {
+				add(r)
+			}
+		}
+		rcRows.Close()
+	}
+
 	sort.Strings(reasons)
 	return reasons
 }

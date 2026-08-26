@@ -1,3 +1,4 @@
+基于 Go 实现的橄榄鲜果冷榨前联检 Web 项目，一款后端服务，管理收样拆分、成熟度计数、氧化核验与冷榨裁决。
 # olivepress-fruit-intake-gate
 
 本 Git 项目来自模型完成任务后的 workspace，不包含嵌套 .git 记录或本地构建产物。

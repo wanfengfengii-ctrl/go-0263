@@ -16,6 +16,7 @@ import (
 
 func TestModel_RevealRejectsConflictingCrateRebind(t *testing.T) {
 	ctx := context.Background()
+	const codeBlindAlreadyRevealed = "ERR_BLIND_ALREADY_REVEALED"
 
 	postJSON := func(t *testing.T, srv *Server, path string, payload any) (int, []byte) {
 		t.Helper()
@@ -160,7 +161,7 @@ func TestModel_RevealRejectsConflictingCrateRebind(t *testing.T) {
 				}
 			},
 			wantStatus: http.StatusConflict,
-			wantCode:   store.CodeBlindAlreadyRevealed,
+			wantCode:   codeBlindAlreadyRevealed,
 			attempts:   2,
 		},
 		{
